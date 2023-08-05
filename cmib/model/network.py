@@ -47,9 +47,17 @@ class TransformerModel(nn.Module):
         Returns:
             output Tensor of shape [seq_len, batch_size, embedding_dim]
         """
+        #print(self.cond_emb(cond_code)
+        #print(self.d_model)
         cond_embedding = self.cond_emb(cond_code).permute(1, 0, 2)
+        #print(cond_embedding)
+        #print(src.shape)
         output = self.pos_embedding(src)
         output = torch.cat([cond_embedding, output], dim=0)
+        #print(cond_embedding.shape)
+        #print(output.shape)
+        #print(src_mask.shape)
+        #print(src_mask)
         output = self.transformer_encoder(output, src_mask)
         output = self.decoder(output)
         return output, cond_embedding

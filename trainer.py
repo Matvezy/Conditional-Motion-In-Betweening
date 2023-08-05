@@ -5,14 +5,14 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-import wandb
+#import wandb
 import yaml
 from sklearn.preprocessing import LabelEncoder
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-from cmib.data.lafan1_dataset import LAFAN1Dataset
+from cmib.data.lafan1_dataset import CustomDataset
 from cmib.data.utils import flip_bvh, increment_path, process_seq_names
 from cmib.model.network import TransformerModel
 from cmib.model.preprocess import (lerp_input_repr, replace_constant,
@@ -36,7 +36,7 @@ def train(opt, device):
     save_interval = opt.save_interval
                           
     # Loggers
-    wandb.init(config=opt, project=opt.wandb_pj_name, entity=opt.entity, name=opt.exp_name, dir=opt.save_dir)
+    #wandb.init(config=opt, project=opt.wandb_pj_name, entity=opt.entity, name=opt.exp_name, dir=opt.save_dir)
 
     # Load Skeleton
     offset = sk_offsets if opt.dataset == 'LAFAN' else amass_offsets
@@ -45,12 +45,13 @@ def train(opt, device):
 
     # Flip, Load and preprocess data. It utilizes LAFAN1 utilities
     if opt.dataset == 'LAFAN':
-        flip_bvh(opt.data_path, skip='subject5')
+        #flip_bvh(opt.data_path, skip='subject5')
+        flip_bvh(opt.data_path, skip="0015")
 
     # Load LAFAN Dataset
     Path(opt.processed_data_dir).mkdir(parents=True, exist_ok=True)
-    lafan_dataset = LAFAN1Dataset(lafan_path=opt.data_path, processed_data_dir=opt.processed_data_dir, train=True, device=device, window=opt.window, dataset=opt.dataset)
-    
+    lafan_dataset = CustomDataset(lafan_path=opt.data_path, processed_data_dir=opt.processed_data_dir, train=True, device=device, window=opt.window, dataset=opt.dataset)
+    #print(lafan_dataset.data["global_pos"].shape)
     from_idx, target_idx = opt.from_idx, opt.target_idx
     horizon = target_idx - from_idx + 1
     print(f"Horizon: {horizon}")
@@ -101,7 +102,7 @@ def train(opt, device):
         recon_pos_loss = []
         recon_rot_loss = []
         total_loss_list = []
-
+        #print('Total number of batches:', len(lafan_data_loader))
         for minibatch_pose_input, minibatch_pose_gt, seq_label in pbar:
 
             for _ in range(5):
@@ -163,10 +164,14 @@ def train(opt, device):
             "Train/Loss/Rotatation Loss": torch.stack(recon_rot_loss).mean().item(),
             "Train/Loss/Total Loss": torch.stack(total_loss_list).mean().item(),
         }
-        wandb.log(log_dict)
+        #wandb.log(log_dict)
 
         # Save model
         if (epoch % save_interval) == 0:
+            print("Train/Loss/Condition Loss" + str(torch.stack(recon_cond_loss).mean().item()))
+            print("Train/Loss/Position Loss" + str(torch.stack(recon_pos_loss).mean().item())) 
+            print("Train/Loss/Rotatation Loss" + str(torch.stack(recon_rot_loss).mean().item()))
+            print("Train/Loss/Total Loss" + str(torch.stack(total_loss_list).mean().item()))
             ckpt = {'epoch': epoch,
                     'transformer_encoder_state_dict': transformer_encoder.state_dict(),
                     'horizon': transformer_encoder.seq_len,
@@ -182,16 +187,16 @@ def train(opt, device):
             torch.save(ckpt, os.path.join(wdir, f'train-{epoch}.pt'))
             print(f"[MODEL SAVED at {epoch} Epoch]")
 
-    wandb.run.finish()
+    #wandb.run.finish()
     torch.cuda.empty_cache()
 
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--project', default='runs/train', help='project/name')
-    parser.add_argument('--data_path', type=str, default='ubisoft-laforge-animation-dataset/output/BVH', help='BVH dataset path')
+    parser.add_argument('--data_path', type=str, default='ubisoft-laforge-animation-dataset/output/Test_002_Dataset_Clean_BVH_rotations_only', help='BVH dataset path')
     parser.add_argument('--dataset', type=str, default='LAFAN', help='Dataset name')
     parser.add_argument('--processed_data_dir', type=str, default='processed_data_80/', help='path to save pickled processed data')
-    parser.add_argument('--window', type=int, default=90, help='horizon')
+    parser.add_argument('--window', type=int, default=20, help='horizon')
     parser.add_argument('--wandb_pj_name', type=str, default='cmib_train', help='project name')
     parser.add_argument('--batch_size', type=int, default=32, help='batch size')
     parser.add_argument('--epochs', type=int, default=3000)
@@ -203,8 +208,8 @@ def parse_opt():
     parser.add_argument('--loss_cond_weight', type=float, default=1.5, help='loss_cond_weight')
     parser.add_argument('--loss_pos_weight', type=float, default=0.05, help='loss_pos_weight')
     parser.add_argument('--loss_rot_weight', type=float, default=2.0, help='loss_rot_weight')
-    parser.add_argument('--from_idx', type=int, default=9, help='from idx')
-    parser.add_argument('--target_idx', type=int, default=88, help='target idx')
+    parser.add_argument('--from_idx', type=int, default=0, help='from idx')
+    parser.add_argument('--target_idx', type=int, default=20, help='target idx')
     parser.add_argument('--interpolation', type=str, default='slerp', help='interpolation')
     opt = parser.parse_args()
     return opt

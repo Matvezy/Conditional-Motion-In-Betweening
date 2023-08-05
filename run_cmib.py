@@ -9,7 +9,7 @@ import torch.nn as nn
 from PIL import Image
 from sklearn.preprocessing import LabelEncoder
 
-from cmib.data.lafan1_dataset import LAFAN1Dataset
+from cmib.data.lafan1_dataset import CustomDataset, LAFAN1Dataset
 from cmib.data.utils import write_json
 from cmib.lafan1.utils import quat_ik
 from cmib.model.network import TransformerModel
@@ -23,12 +23,14 @@ from cmib.vis.pose import plot_pose_with_stop
 def test(opt, device):
 
     save_dir = Path(os.path.join('runs', 'train', opt.exp_name))
-    wdir = save_dir / 'weights'
+    #wdir = save_dir / 'weights'
+    wdir =  "./trained_weights/benchmark_models/20_frames/weights"
     weights = os.listdir(wdir)
 
     if opt.weight == 'latest':
-        weights_paths = [wdir / weight for weight in weights]
-        weight_path = max(weights_paths , key = os.path.getctime)
+        #weights_paths = [wdir / weight for weight in weights]
+        #weight_path = max(weights_paths , key = os.path.getctime)
+        weight_path = "./trained_weights/benchmark_models/20_frames/weights/train-280.pt"
     else:
         weight_path = wdir / ('train-' + opt.weight + '.pt')
     ckpt = torch.load(weight_path, map_location=device)
@@ -42,16 +44,21 @@ def test(opt, device):
     # Load LAFAN Dataset
     Path(opt.processed_data_dir).mkdir(parents=True, exist_ok=True)
     test_window = ckpt['horizon'] - 1 + 10
-    lafan_dataset = LAFAN1Dataset(lafan_path=opt.data_path, processed_data_dir=opt.processed_data_dir, train=False, device=device, window=test_window)
+    print(f"Test Window: {test_window}")
+    print(opt.data_path, opt.processed_data_dir, test_window)
+    #ubisoft-laforge-animation-dataset/output/BVH
+    lafan_dataset = CustomDataset(lafan_path="ubisoft-laforge-animation-dataset/output/Test_002_Dataset_Clean_BVH_rotations_only", processed_data_dir=opt.processed_data_dir, train=False, device=device, window=test_window)
     total_data = lafan_dataset.data['global_pos'].shape[0]
     
     # Replace with noise to In-betweening Frames
     from_idx, target_idx = ckpt['from_idx'], ckpt['target_idx'] # default: 9-40, max: 48
+
+    print(f"FROM: {from_idx}, TARGET: {target_idx}")
     horizon = ckpt['horizon']
     print(f"HORIZON: {horizon}")
 
-    test_idx = [950, 1140, 2100]
-
+    #test_idx = [950, 1140, 2100]
+    test_idx = [1]
     # Extract dimension from processed data
     pos_dim = lafan_dataset.num_joints * 3
     rot_dim = lafan_dataset.num_joints * 4
@@ -62,7 +69,7 @@ def test(opt, device):
     local_q_normalized = nn.functional.normalize(local_q, p=2.0, dim=-1)
 
     # Replace testing inputs
-    fixed = 0
+    fixed = 0                               #START HERE
     global_pos, global_q = skeleton_mocap.forward_kinematics_with_rotation(local_q_normalized, root_pos)
 
     interpolation = ckpt['interpolation']
@@ -99,10 +106,11 @@ def test(opt, device):
 
     target_seq = opt.motion_type
     seq_id = np.where(le.classes_==target_seq)[0]
+    print(le.classes_)
     conditioning_labels = np.expand_dims((np.repeat(seq_id[0], repeats=len(seq_categories))), axis=1)
     conditioning_labels = torch.Tensor(conditioning_labels).type(torch.int64).to(device)
 
-    model = TransformerModel(seq_len=ckpt['horizon'], d_model=ckpt['d_model'], nhead=ckpt['nhead'], d_hid=ckpt['d_hid'], nlayers=ckpt['nlayers'], dropout=0.05, out_dim=repr_dim)
+    model = TransformerModel(seq_len=ckpt['horizon'], d_model=ckpt['d_model'], nhead=ckpt['nhead'], d_hid=ckpt['d_hid'], nlayers=ckpt['nlayers'], dropout=0.05, out_dim=repr_dim, num_labels=1)
     model.load_state_dict(ckpt['transformer_encoder_state_dict'])
     model.eval()
 
@@ -186,8 +194,8 @@ def parse_opt():
     parser.add_argument('--skeleton_path', type=str, default='ubisoft-laforge-animation-dataset/output/BVH/walk1_subject1.bvh', help='path to reference skeleton')
     parser.add_argument('--processed_data_dir', type=str, default='processed_data_80/', help='path to save pickled processed data')
     parser.add_argument('--save_path', type=str, default='runs/test', help='path to save model')
-    parser.add_argument('--motion_type', type=str, default='jumps', help='motion type')
-    parser.add_argument('--plot_image', type=bool, default=False, help='plot image')
+    parser.add_argument('--motion_type', type=str, default='Wal', help='motion type')
+    parser.add_argument('--plot_image', type=bool, default=True, help='plot image')
     opt = parser.parse_args()
     return opt
 

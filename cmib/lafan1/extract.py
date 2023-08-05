@@ -195,34 +195,47 @@ def get_lafan1_set(bvh_path, actors, window=50, offset=20, train=True, stats=Fal
     bvh_files = sorted(os.listdir(bvh_path))
 
     for file in bvh_files:
+        #print("FILE {}".format(file))
         if file.endswith(".bvh"):
             file_info = ntpath.basename(file[:-4]).split("_")
-            seq_name = file_info[0]
-            subject = file_info[1]
+            if (file_info[-1] == "LRflip"):
+                continue
 
+            #print("FILE_INFO {}".format(file_info))
+            seq_name = file_info[0]
+            subject = file_info[-1]
+
+            
+            """
             if (not train) and (file_info[-1] == "LRflip"):
                 continue
 
             if stats and (file_info[-1] == "LRflip"):
                 continue
-
+            """
             # seq_name, subject = ntpath.basename(file[:-4]).split("_")
+            #print("SUBJECT {}".format(subject))
+            #print("SEQ_NAME {}".format(seq_name))
+            #print("ACTORS {}".format(actors))
             if subject in actors:
+                
                 print("Processing file {}".format(file))
                 seq_path = os.path.join(bvh_path, file)
                 anim = read_bvh(seq_path)
-
+                #print("Here1")
                 # Sliding windows
                 i = 0
+                #print("Here2")
                 while i + window < anim.pos.shape[0]:
+                    #print(i+window)
                     q, x = utils.quat_fk(
                         anim.quats[i : i + window],
                         anim.pos[i : i + window],
                         anim.parents,
                     )
-                    # Extract contacts
+                    # Extract contacts [3, 4], [7, 8]
                     c_l, c_r = utils.extract_feet_contacts(
-                        x, [3, 4], [7, 8], velfactor=0.02
+                        x, [16, 17], [20, 21], velfactor=0.02
                     )
                     X.append(anim.pos[i : i + window])
                     Q.append(anim.quats[i : i + window])
@@ -230,7 +243,7 @@ def get_lafan1_set(bvh_path, actors, window=50, offset=20, train=True, stats=Fal
                     subjects.append(subjects)
                     contacts_l.append(c_l)
                     contacts_r.append(c_r)
-
+                    
                     i += offset
 
     X = np.asarray(X)
@@ -239,6 +252,9 @@ def get_lafan1_set(bvh_path, actors, window=50, offset=20, train=True, stats=Fal
     contacts_r = np.asarray(contacts_r)
 
     # Sequences around XZ = 0
+    #print(X)
+    #print(X.shape)
+
     xzs = np.mean(X[:, :, 0, ::2], axis=1, keepdims=True)
     X[:, :, 0, 0] = X[:, :, 0, 0] - xzs[..., 0]
     X[:, :, 0, 2] = X[:, :, 0, 2] - xzs[..., 1]
@@ -247,6 +263,7 @@ def get_lafan1_set(bvh_path, actors, window=50, offset=20, train=True, stats=Fal
     X, Q = utils.rotate_at_frame(X, Q, anim.parents, n_past=npast)
 
     return X, Q, anim.parents, contacts_l, contacts_r, seq_names
+
 
 
 def get_train_stats(bvh_folder, train_set):

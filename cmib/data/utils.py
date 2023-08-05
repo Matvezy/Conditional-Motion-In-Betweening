@@ -76,16 +76,16 @@ def flip_bvh(bvh_folder: str, skip: str):
                 )  # Hips 6 Channel + 3 * 21 = 69
                 motion_mat[0, 2] *= -1.0  # Invert translation Z axis (forward-backward)
                 quat = euler_to_quaternion(
-                    np.radians(motion_mat[1:]), "zyx"
+                    np.radians(motion_mat[1:]), "zxy" #zyx original
                 )  # This function takes radians
                 # Invert X-axis (Left-Right) / Quaternion representation: (w, x, y, z)
                 quat[:, 0] *= -1.0
                 quat[:, 1] *= -1.0
-                motion_mat[1:] = np.degrees(qeuler_np(quat, "zyx"))
+                motion_mat[1:] = np.degrees(qeuler_np(quat, "zxy")) #zyx original
 
                 # idx 0: Hips Wolrd coord, idx 1: Hips Rotation
-                left_idx = [2, 3, 4, 5, 15, 16, 17, 18]  # From 2: LeftUpLeg...
-                right_idx = [6, 7, 8, 9, 19, 20, 21, 22]  # From 6: RightUpLeg...
+                left_idx = [15, 16, 17, 18, 7, 8, 9, 10]  # From 2: LeftUpLeg... #[2, 3, 4, 5, 15, 16, 17, 18] 
+                right_idx = [19, 20, 21, 22, 11, 12, 13, 14]  # From 6: RightUpLeg... #[6, 7, 8, 9, 19, 20, 21, 22]
                 motion_mat[left_idx + right_idx] = motion_mat[
                     right_idx + left_idx
                 ].copy()
